@@ -2,15 +2,91 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import time
+import os
 from datetime import datetime
-import os                     
-from init_db import inicializar_base_datos  
 
 DB_NAME = "turnoya.db"
 
-if not os.path.exists(DB_NAME):
-    inicializar_base_datos()
-    
+# --- BLINDAJE PARA DESPLIEGUES EN LA NUBE (Streamlit Cloud) ---
+def garantizar_base_datos():
+    # Solo crea las tablas si el archivo físico NO existe en el servidor
+    if not os.path.exists(DB_NAME):
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON;")
+
+        # 1. Tabla Clientes
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clientes (
+                id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                telefono TEXT,
+                correo TEXT,
+                fecha_registro TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+        ''')
+
+        # 2. Tabla Servicios
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS servicios (
+                id_servicio INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre_servicio TEXT NOT NULL,
+                duracion_minutos INTEGER NOT NULL,
+                precio REAL NOT NULL,
+                activo INTEGER DEFAULT 1
+            )
+        ''')
+
+        # 3. Tabla Citas
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS citas (
+                id_cita INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_cliente INTEGER NOT NULL,
+                id_servicio INTEGER NOT NULL,
+                fecha TEXT NOT NULL,
+                hora TEXT NOT NULL,
+                estado TEXT NOT NULL,
+                observaciones TEXT,
+                fecha_creacion TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+                FOREIGN KEY (id_servicio) REFERENCES servicios(id_servicio)
+            )
+        ''')
+
+        # 4. Tabla Incidencias Calidad
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incidencias_calidad (
+                id_incidencia INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_cita INTEGER,
+                tipo_incidencia TEXT NOT NULL,
+                descripcion TEXT NOT NULL,
+                criterio_iso TEXT NOT NULL,
+                severidad TEXT NOT NULL,
+                fecha_reporte TEXT DEFAULT (datetime('now', 'localtime')),
+                estado TEXT NOT NULL,
+                FOREIGN KEY (id_cita) REFERENCES citas(id_cita)
+            )
+        ''')
+
+        # Datos semilla iniciales
+        cursor.execute("INSERT INTO clientes (nombre, telefono, correo) VALUES ('Juan Pérez', '3157778899', 'juan.perez@email.com')")
+
+        servicios_iniciales = [
+            ('Corte de Cabello', 30, 25000.0, 1),
+            ('Barbería', 25, 20000.0, 1),
+            ('Manicure', 45, 18000.0, 1),
+            ('Cepillado', 40, 22000.0, 1),
+            ('Limpieza Facial', 60, 45000.0, 1)
+        ]
+        cursor.executemany("INSERT INTO servicios (nombre_servicio, duracion_minutos, precio, activo) VALUES (?, ?, ?, ?)", servicios_iniciales)
+
+        conn.commit()
+        conn.close()
+
+# Ejecutar la verificación antes de renderizar la aplicación
+garantizar_base_datos()
+# --------------------------------------------------------------
+
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
@@ -39,7 +115,6 @@ with tabs[0]:
         correo = st.text_input("Correo Electrónico")
         
         if st.button("Guardar Cliente"):
-            # ERROR INTENCIONAL: No valida vacíos (Usabilidad / Adecuación Funcional)
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("INSERT INTO clientes (nombre, telefono, correo) VALUES (?, ?, ?)", (nombre, telefono, correo))
@@ -94,7 +169,6 @@ with tabs[2]:
                 f_str = fecha_cita.strftime("%Y-%m-%d")
                 h_str = hora_cita.strftime("%H:%M")
                 
-                # ERROR INTENCIONAL: Permite citas duplicadas idénticas (Confiabilidad)
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute(
@@ -120,7 +194,6 @@ with tabs[3]:
     df_agenda = pd.read_sql_query(query_agenda, conn)
     conn.close()
     
-    # ERROR INTENCIONAL: Carga lenta artificial acumulativa (Eficiencia de desempeño)
     retraso_base = 1.5 
     penalizacion_volumen = len(df_agenda) * 0.1
     time.sleep(retraso_base + penalizacion_volumen) 
