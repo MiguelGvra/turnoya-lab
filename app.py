@@ -94,7 +94,7 @@ def get_db_connection():
     return conn
 
 st.set_page_config(page_title="TurnoYa Lab", page_icon="📅", layout="wide")
-st.title("📅 TurnoYa Lab — Sistema de Agendamiento Académico")
+st.title("📅 TurnoYa Lab — Sistema de Agendamiento")
 st.caption("Entorno de Laboratorio de Calidad de Software (Versión 1.0 - Con Fallas Controladas)")
 
 tabs = st.tabs([
