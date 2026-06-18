@@ -251,4 +251,3 @@ with tabs[4]:
     df_incidencias = pd.read_sql_query("SELECT id_incidencia, tipo_incidencia, descripcion, criterio_iso, severidad, estado FROM incidencias_calidad", conn)
     conn.close()
     st.dataframe(df_incidencias, use_container_width=True)
-    print("Prueba de error"
